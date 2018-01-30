@@ -109,7 +109,7 @@ module.exports = function (callback, network) {
       var csvStream = csv({headers: true})
         .on("data", data => {
           data.status = 'unsent'
-          data.chsb_tokens = new bn(data.chsb_tokens).times(1e18).toString(10)
+          data.chsb_tokens = new bn(data.chsb_tokens).times(1e8).toString(10)
           data.to = add0x(data.wallet_confirmed)
           txArray.push(data)
         })
