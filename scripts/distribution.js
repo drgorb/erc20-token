@@ -38,7 +38,7 @@ module.exports = function (callback, network) {
     // let sender = accounts[0]
   }
 
-  console.log(web3.eth.accounts[0], net)
+  console.log(sender, net)
 
   var stream = fs.createReadStream("scripts/chsb_send.csv")
   let time = (new Date().getTime())
