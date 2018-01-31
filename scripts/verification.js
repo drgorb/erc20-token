@@ -52,11 +52,13 @@ module.exports = function (callback) {
       let receipt = web3.eth.getTransactionReceipt(data.transaction)
       let result = {
         status: receipt ? receipt.status : -1,
-        chsb_tokens: data.chsb_tokens
+        chsb_tokens: data.chsb_tokens,
+        wallet_confirmed: data.wallet_confirmed
       }
       tkn.balanceOf(data.wallet_confirmed)
         .then(balance => {
           result.balance = balance.toString(10)
+          result.transaction_hash = data.transaction
           console.log(result)
           csvOutStream.write(result)
           if (++currentRow >= rowCount) {
