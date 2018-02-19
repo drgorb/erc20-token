@@ -12,7 +12,8 @@ function add0x(input) {
   }
   return input;
 }
-
+//t.transfer(transfer.recipient, transfer.amount, {from: sender, gasPrice: 2.4e10, nonce:
+// transfer.nonce, gas: 200000})
 module.exports = function (callback, network) {
   //get the parameter and the value in case of the first format
   let args = process.argv
@@ -44,12 +45,18 @@ module.exports = function (callback, network) {
   let time = (new Date().getTime())
   var csvOutStream = csv.createWriteStream({headers: true}),
     successStream = fs.createWriteStream('distribution-' + net + '.csv')
+  var csvOutStreamErr = csv.createWriteStream({headers: true}),
+    errortream = fs.createWriteStream('distribution-error-' + net + '.csv')
 
   successStream.on("finish", function () {
     console.log("DONE!");
   });
+  errortream.on("finish", function () {
+    console.log("DONE!");
+  });
 
   csvOutStream.pipe(successStream)
+  csvOutStreamErr.pipe(errortream)
 
   let tkn = Token.at(address || Token.address)
   console.log('token address is', tkn.address)
@@ -60,46 +67,47 @@ module.exports = function (callback, network) {
   let errors = {}
 
   let handleCsvRow = (data, index) => {
-    let setTxSent = tx => {
-      txArray[index].status = 'sent'
-      rowCount++
-      console.log('successfully sent', ++txCount, 'index', index, 'address', data.wallet_confirmed)
-      let dateString = (new Date()).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      })
-      let txDate = dateString.split('/')[2] + dateString.split('/')[0] + dateString.split('/')[1]
-      data.date = txDate
 
-      csvOutStream.write({
-        date: data.date,
-        sb_user: data.sb_user,
-        wallet_confirmed: data.wallet_confirmed,
-        chsb_tokens: new bn(data.chsb_tokens).dividedBy(1e8),
-        transaction: tx.tx
-      })
-    }
+    tkn.transfer(data.to, data.chsb_tokens, {gasPrice: 2e9, from: sender, gas: 200000})
+      .then(tx => {
+        txArray[index].status = 'sent'
+        rowCount++
+        console.log('successfully sent', ++txCount, 'index', index, 'address', data.wallet_confirmed)
+        let dateString = (new Date()).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        })
+        let txDate = dateString.split('/')[2] + dateString.split('/')[0] + dateString.split('/')[1]
+        data.date = txDate
 
-    tkn.transfer(data.to, data.chsb_tokens, {gasPrice: 8e9, from: sender, gas: 200000})
-      .then(setTxSent)
+        csvOutStream.write({
+          date: data.date,
+          sb_user: data.sb_user,
+          wallet_confirmed: data.wallet_confirmed,
+          chsb_tokens: new bn(data.chsb_tokens).dividedBy(1e8),
+          transaction: tx.tx
+        })
+      })
       .catch(err => {
-        let tx = web3.eth.getTransaction(err.message.substr(19, 66)) || {}
-        tx.tx = tx.hash || null
-        if(tx.tx) {
-          console.log('has error but is OK')
-          setTxSent(tx)
-          return
-        } else if (errors[index] > 10) {
-          txArray[index].status = 'error'
-          console.log('address in error', data.wallet_confirmed)
-        } else {
-          console.log('setting transaction', index, 'unsent')
-          txArray[index].status = 'error'
-          // txArray[index].status = 'unsent'
-        }
-        errors[index] = errors[index] ? errors[index] + 1 : 1
-        console.log('retry on row', index, 'retry', errors[index], err)
+        txArray[index].status = 'sent'
+        rowCount++
+        console.log('error sending', ++txCount, 'index', index, 'address', data.wallet_confirmed, err.message.split('\n')[0])
+        let dateString = (new Date()).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        })
+        let txDate = dateString.split('/')[2] + dateString.split('/')[0] + dateString.split('/')[1]
+        data.date = txDate
+
+        csvOutStreamErr.write({
+          date: data.date,
+          sb_user: data.sb_user,
+          wallet_confirmed: data.wallet_confirmed,
+          chsb_tokens: new bn(data.chsb_tokens).dividedBy(1e8),
+          transaction: err.message.split('\n')[0]
+        })
       })
   }
 
