@@ -1,5 +1,4 @@
-// truffle exec scripts/distribute.js --sender=0xb1AF571F1e8bE1182Bb4268380d6d1d8991137A6 --contract=0xba9d4199faB4f26eFE3551D490E3821486f135Ba --network=main
-var Token = artifacts.require('Token')
+// truffle exec scripts/distribute-eth.js --sender=0xb1AF571F1e8bE1182Bb4268380d6d1d8991137A6 --network=main
 var csv = require('fast-csv')
 var fs = require('fs')
 var bn = require('bignumber.js')
@@ -13,6 +12,7 @@ function add0x(input) {
   }
   return input;
 }
+
 //t.transfer(transfer.recipient, transfer.amount, {from: sender, gasPrice: 2.4e10, nonce:
 // transfer.nonce, gas: 200000})
 module.exports = function (callback, network) {
@@ -26,11 +26,6 @@ module.exports = function (callback, network) {
     net = net.substring(10)
   }
 
-  let address = args.find(arg => arg.startsWith('--contract'))
-  if (address) {
-    address = address.split('=')[1]
-  }
-
   let sender = args.find(arg => arg.startsWith('--sender'))
   if (sender) {
     sender = sender.split('=')[1]
@@ -42,25 +37,17 @@ module.exports = function (callback, network) {
 
   console.log(sender, net)
 
-  var stream = fs.createReadStream("scripts/send.csv")
+  var stream = fs.createReadStream("scripts/send-eth.csv")
   let time = (new Date().getTime())
-  var csvOutStream = csv.createWriteStream({headers: true}),
-    successStream = fs.createWriteStream('distribution-' + net + '.csv')
-  var csvOutStreamErr = csv.createWriteStream({headers: true}),
-    errortream = fs.createWriteStream('distribution-error-' + net + '.csv')
+  var csvOutStream = csv.createWriteStream({headers: true, delimiter: ';'}),
+    successStream = fs.createWriteStream('distribution-eth-' + net + '.csv')
 
   successStream.on("finish", function () {
     console.log("DONE!");
   });
-  errortream.on("finish", function () {
-    console.log("DONE!");
-  });
 
   csvOutStream.pipe(successStream)
-  csvOutStreamErr.pipe(errortream)
 
-  let tkn = Token.at(address || Token.address)
-  console.log('token address is', tkn.address)
   let rowCount = 0
 
   let txCount = 0
@@ -69,8 +56,17 @@ module.exports = function (callback, network) {
 
   let handleCsvRow = (data, index) => {
 
-    tkn.transfer(data.to, data.chsb_tokens, {gasPrice: 2e9, from: sender, gas: 200000})
-      .then(tx => {
+    web3.eth.sendTransaction({
+        to: data.to,
+        value: data.amount,
+        gasPrice: 2e9,
+        from: sender,
+        gas: 50000
+      },
+      (err, tx) => {
+        if (err) {
+          tx = tx || err.message
+        }
         txArray[index].status = 'sent'
         rowCount++
         console.log('successfully sent', ++txCount, 'index', index, 'address', data.wallet_confirmed)
@@ -84,31 +80,15 @@ module.exports = function (callback, network) {
 
         csvOutStream.write({
           date: data.date,
-          sb_user: data.sb_user,
-          wallet_confirmed: data.wallet_confirmed,
-          chsb_tokens: new bn(data.chsb_tokens).dividedBy(1e8),
-          transaction: tx.tx
+          user_id: data.user_id,
+          currency: 'ETH',
+          amount: new bn(data.amount).dividedBy(1e18),
+          chsb_tokens: 0,
+          tx_id: tx,
+          address: data.wallet_confirmed,
+          crypto_transaction_id: data.transaction_id
         })
-      })
-      .catch(err => {
-        txArray[index].status = 'sent'
-        rowCount++
-        console.log('error sending', ++txCount, 'index', index, 'address', data.wallet_confirmed, err.message.split('\n')[0])
-        let dateString = (new Date()).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
-        })
-        let txDate = dateString.split('/')[2] + dateString.split('/')[0] + dateString.split('/')[1]
-        data.date = txDate
 
-        csvOutStreamErr.write({
-          date: data.date,
-          sb_user: data.sb_user,
-          wallet_confirmed: data.wallet_confirmed,
-          chsb_tokens: new bn(data.chsb_tokens).dividedBy(1e8),
-          transaction: err.message.split('\n')[0]
-        })
       })
   }
 
@@ -130,7 +110,7 @@ module.exports = function (callback, network) {
   var csvStream = csv({headers: true})
     .on("data", data => {
       data.status = 'unsent'
-      data.chsb_tokens = new bn(data.chsb_tokens).times(1e8).toString(10)
+      data.amount = new bn(data.amount).times(1e18).toString(10)
       data.to = add0x(data.wallet_confirmed)
       txArray.push(data)
     })

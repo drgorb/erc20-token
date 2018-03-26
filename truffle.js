@@ -9,7 +9,6 @@ module.exports = {
         },
 
         kovan: {
-            from: "0x6d8B18F9b737160A73F536393C908FE89961E570",
             gas: 4700000,
             host: "localhost",
             port: 8545,
