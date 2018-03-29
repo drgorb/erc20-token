@@ -1,4 +1,5 @@
-// truffle exec scripts/distribute.js --sender=0xb1AF571F1e8bE1182Bb4268380d6d1d8991137A6 --contract=0xba9d4199faB4f26eFE3551D490E3821486f135Ba --network=main
+// mainnet - truffle exec scripts/distribution.js --sender=0xb1AF571F1e8bE1182Bb4268380d6d1d8991137A6 --contract=0xba9d4199faB4f26eFE3551D490E3821486f135Ba --network=main
+// kovan - truffle exec scripts/distribution.js --sender=0x0089b397DefaEe0385eCe6851978432041d03451 --contract=0xcefd02aaa1656f00f2b15a5fd2b26de2d203145f --network=kovan
 var Token = artifacts.require('Token')
 var csv = require('fast-csv')
 var fs = require('fs')
@@ -65,12 +66,13 @@ module.exports = function (callback, network) {
 
   let txCount = 0
   let txArray = []
-  let errors = {}
+  let txQueue = []
 
   let handleCsvRow = (data, index) => {
 
     tkn.transfer(data.to, data.chsb_tokens, {gasPrice: 2e9, from: sender, gas: 200000})
       .then(tx => {
+        txQueue.push(tx.tx) // add tx hash to queue
         txArray[index].status = 'sent'
         rowCount++
         console.log('successfully sent', ++txCount, 'index', index, 'address', data.wallet_confirmed)
@@ -114,6 +116,20 @@ module.exports = function (callback, network) {
 
   let runTransactions = () => {
     let timerId = setInterval(() => {
+      let receipts = []
+      txQueue.forEach((tx, idx) => {
+        let receipt = web3.eth.getTransactionReceipt(tx)
+        if(receipt) {
+          receipts.push(idx)
+        }
+      })
+
+      for(let i = receipts.length - 1; i >= 0; i--) {
+        txQueue.splice(receipts[i], 1)
+      }
+
+      if(txQueue.length >= 5) return
+
       let unsent = txArray.findIndex(row => row.status === 'unsent')
       let sending = txArray.findIndex(row => row.status === 'sending')
       if (unsent > -1) {
