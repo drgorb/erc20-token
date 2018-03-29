@@ -17,6 +17,7 @@ function add0x(input) {
 //t.transfer(transfer.recipient, transfer.amount, {from: sender, gasPrice: 2.4e10, nonce:
 // transfer.nonce, gas: 200000})
 module.exports = function (callback, network) {
+  const start = (new Date()).getTime()
   //get the parameter and the value in case of the first format
   let args = process.argv
   let net = args.find(arg => arg.startsWith('--network'))
@@ -51,7 +52,8 @@ module.exports = function (callback, network) {
     errortream = fs.createWriteStream('distribution-error-' + net + '.csv')
 
   successStream.on("finish", function () {
-    console.log("DONE!");
+    const end = (new Date()).getTime()
+    console.log("DONE!", end - start);
   });
   errortream.on("finish", function () {
     console.log("DONE!");
